@@ -1,0 +1,39 @@
+import pandas as pd
+import numpy as np
+df = pd.read_csv('photo_dataset.csv')
+df = df.drop(['H_std_bill', 'S_std_bill', 'B_std_bill', 'Pixels_std_bill', 'H_bill', 'S_bill',
+       'B_bill', 'Pixels_bill', 'H_crest', 'S_crest', 'B_crest',
+       'Pixels_crest', 'H_face', 'S_face', 'B_face', 'Pixels_face',
+       'Photo_breast', 'Juvenile_plumage', 'Juvenile_ironbill', 'H_std_breast',
+       'S_std_breast', 'B_std_breast', 'Pixels_std_breast', 'H_breast',
+       'S_breast', 'B_breast', 'Pixels_breast', 'Notes'], axis=1)
+
+
+df.dtypes
+df = df.replace('#VALUE!', np.nan)
+df = df.dropna()
+
+df['H_crest_diff'] = df['H_crest_diff'].astype('int')
+df['S_crest_diff'] = df['S_crest_diff'].astype('int')
+df['B_crest_diff'] = df['B_crest_diff'].astype('int')
+df['H_face_diff'] = df['H_face_diff'].astype('int')
+df['S_face_diff'] = df['S_face_diff'].astype('int')
+df['B_face_diff'] = df['B_face_diff'].astype('int')
+df['H_breast_diff'] = df['H_breast_diff'].astype('int')
+df['S_breast_diff'] = df['S_breast_diff'].astype('int')
+df['B_breast_diff'] = df['B_breast_diff'].astype('int')
+
+df2 = df.groupby('Individual').mean()
+
+# df2.to_csv('photo_dataset_mean.csv')
+
+df.groupby('Individual')
+
+df_stack = df.set_index(['Individual', 'Sample'])
+
+
+
+g = df.groupby(["Individual"]).cumcount().add(1)
+df = df.set_index(["Individual", g]).unstack(fill_value=0).sort_index(axis=1, level=1)
+df.columns = ["{}{}".format(a, b) for a, b in df.columns]
+df.to_csv('photo_dataset_diffs_long.csv')

@@ -1,0 +1,29 @@
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv('photo_dataset.csv')
+df2 = pd.read_csv('Morphology_Datasheet_UAZ.csv')
+
+df2 = df2[['ID', 'AGE', 'SEX', 'SPECIES']]
+df2 = df2.loc[df2["AGE"] != "Immature"]
+
+df3 = pd.merge(df, df2, how='inner', left_on = 'Individual', right_on = 'ID')
+df3 = df3.loc[df3["AGE"] != "Immature"]
+
+df3.loc[df3["Sex"] == "M", "Sex"] = 'Male'
+df3.loc[df3["Sex"] == "F", "Sex"] = 'Female'
+
+df3.to_csv('photo_dataset_joined.csv')
+
+# checked in excel that all my species, sex, and age classifications agree with the record, adjusted a few
+df = pd.read_csv('photo_dataset_joined.csv')
+df2 = pd.read_csv('Morphology_Datasheet_UAZ.csv')
+df2 = df2.loc[df2["AGE"] != "Immature"]
+
+df2 = df2[['ID', 'COUNTRY', 'STATE', 'LOCATION', 'Exact coordinates?', 'LATITIUDE', 'LONGITUDE']]
+df3 = pd.merge(df, df2, how='inner', left_on = 'Individual', right_on = 'ID')
+df3.to_csv('photo_dataset_joined_locations.csv')
+
+
+
+df = pd.read_csv('photo_dataset_locationfiltered.csv')

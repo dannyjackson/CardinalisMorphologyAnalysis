@@ -1,0 +1,1281 @@
+# R script
+# linear analyses
+
+
+install.packages("effects")
+R
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(afex)
+library(ggplot2)
+library(emmeans)
+library(jtools)
+library(tidyr)
+library(interactions)
+library(effects)
+library(car)
+library(Hmisc)
+library(HSAUR)
+library(ggbiplot)
+library(dplyr)
+library(sjPlot)
+library(sjmisc)
+library(ggplot2)
+library(ggeffects)
+
+# set contr.sum
+# this is opposed to "treatment" which compares all variables to the baseline
+# contr.sum sets the sum of all coefficients to zero
+
+options(contrasts = c("contr.sum","contr.poly"))
+
+df = read.csv('df_lm.csv')
+
+df_latlong = read.csv('urbanization_calculation/Final_locations.csv')
+
+df = merge(df, df_latlong, by = "ID")
+colnames(df)[colnames(df) == "LONGITUDE"] ="longitude"
+colnames(df)[colnames(df) == "LATITIUDE"] ="latitude"
+
+df_merged = merge(df, df_latlong, by = "ID")
+
+df[df$Urban_categorical == 'Rural',]$Urban_categorical = '0_Rural'
+df[df$Urban_categorical == 'Suburban',]$Urban_categorical = '2_UrbanOutskirts'
+df[df$Urban_categorical == 'Urban',]$Urban_categorical = '1_Urban'
+
+df$Year_Adj = 2022 - df$COLLECTING_year
+
+df[df$ID == 'NOCA_005',]$Tarsus = 25.1
+df[df$ID == 'NOCA_008',]$Tarsus = 26.6
+df[df$ID == 'PYRR_004',]$Tarsus = 26.2
+
+df_NOCA_M = df[df$Species == 'NOCA' & df$Sex == 'M',]
+df_NOCA_F = df[df$Species == 'NOCA' & df$Sex == 'F',]
+df_PYRR_M = df[df$Species == 'PYRR' & df$Sex == 'M',]
+df_PYRR_F = df[df$Species == 'PYRR' & df$Sex == 'F',]
+
+
+# compute SMI
+# https://onlinelibrary.wiley.com/doi/10.1111/j.1600-0706.2009.17643.x
+
+NOCA_M_scalar = coef(lm(Mass ~ Tarsus, data = df_NOCA_M))["Tarsus"]
+NOCA_M_tarsus = mean(df_NOCA_M$Tarsus, na.rm=TRUE)
+df_NOCA_M$SMI = df_NOCA_M$Mass * ((NOCA_M_tarsus / df_NOCA_M$Tarsus)^NOCA_M_scalar)
+
+
+NOCA_F_scalar = coef(lm(Mass ~ Tarsus, data = df_NOCA_F))["Tarsus"]
+NOCA_F_tarsus = mean(df_NOCA_F$Tarsus, na.rm=TRUE)
+df_NOCA_F$SMI = df_NOCA_F$Mass * ((NOCA_F_tarsus / df_NOCA_F$Tarsus)^NOCA_F_scalar)
+
+
+PYRR_M_scalar = coef(lm(Mass ~ Tarsus, data = df_PYRR_M))["Tarsus"]
+PYRR_M_tarsus = mean(df_PYRR_M$Tarsus, na.rm=TRUE)
+df_PYRR_M$SMI = df_PYRR_M$Mass * ((PYRR_M_tarsus / df_PYRR_M$Tarsus)^PYRR_M_scalar)
+
+
+PYRR_F_scalar = coef(lm(Mass ~ Tarsus, data = df_PYRR_F))["Tarsus"]
+PYRR_F_tarsus = mean(df_PYRR_F$Tarsus, na.rm=TRUE)
+df_PYRR_F$SMI = df_PYRR_F$Mass * ((PYRR_F_tarsus / df_PYRR_F$Tarsus)^PYRR_F_scalar)
+
+
+write.csv(df, 'df_lm_final.csv')
+
+df %>% group_by(Source,Species,Sex) %>% 
+  dplyr::summarise(total_count=n(),.groups = 'drop') 
+
+df %>%
+  group_by(Species,Sex,Urban_categorical) %>%
+  summarise_at(vars(Wing), list(name = mean))
+
+
+
+nrow(df_NOCA_M)
+nrow(df_NOCA_F)
+nrow(df_PYRR_M)
+nrow(df_PYRR_F)
+
+> nrow(df_NOCA_M)
+[1] 39
+> nrow(df_NOCA_F)
+[1] 9
+> nrow(df_PYRR_M)
+[1] 34
+> nrow(df_PYRR_F)
+[1] 22
+
+df_NOCA_F[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+# 2 UrbanOutskirts, 2 urban, 5 rural. Lump the first two into "Not_Rural"
+df_NOCA_F_simple = df_NOCA_F
+
+df_NOCA_F_simple[df_NOCA_F_simple$Urban_categorical != '0_Rural',]$Urban_categorical = '1_UrbanAndUrbanOutskirts'
+
+df_NOCA_F_simple[df_NOCA_F_simple$Urban_categorical == '0_Rural',]$Urban_categorical = '0_Rural'
+
+df_NOCA_F_simple[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+
+df_PYRR_F[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+# 6 Urban Outskirts (All UAZ), 7 Urban (All field or UAZ), 9 Rural (all UAZ or UWBM)
+df_PYRR_F_simple = df_PYRR_F
+
+df_PYRR_F_simple[df_PYRR_F_simple$Urban_categorical != '0_Rural',]$Urban_categorical = '1_UrbanAndUrbanOutskirts'
+
+df_PYRR_F_simple[df_PYRR_F_simple$Urban_categorical == '0_Rural',]$Urban_categorical = '0_Rural'
+
+df_PYRR_F_simple[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+
+########################################################################################
+# CORRELATION ANALYSIS
+########################################################################################
+
+df_all = rbind(df_NOCA_M, df_NOCA_F, df_PYRR_M, df_PYRR_F)
+
+
+# Check for normality 
+install.packages("ggpubr")
+
+library("dplyr")
+library("ggpubr")
+
+ggdensity(df_NOCA_M_cor$TailLength)
+ggqqplot(df_NOCA_M_cor$TailLength)
+shapiro.test(df_NOCA_M_cor$TailLength)
+
+
+# correlations
+
+df_NOCA_M_cor = subset(df_NOCA_M, select = c("TailLength", "Crest", "Wing", "BillLength", "BillWidth", "Glucose_avg", "Ketones_avg", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "SMI"))
+ "vit_e", "vit_a", "vio", "anther", "lutein", "zeaxan", "b_crypto", "b_dunno", "SMI"))
+
+df_NOCA_F_cor = subset(df_NOCA_F, select = c("TailLength", "Crest", "Wing", "BillLength", "BillWidth", "Glucose_avg", "Ketones_avg", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "SMI"))
+"vit_e", "vit_a", "vio", "anther", "lutein", "zeaxan", "b_crypto", "b_dunno", "SMI"))
+
+df_PYRR_M_cor = subset(df_PYRR_M, select = c("TailLength", "Crest", "Wing", "BillLength", "BillWidth", "Glucose_avg", "Ketones_avg", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "SMI"))
+"vit_e", "vit_a", "vio", "anther", "lutein", "zeaxan", "b_crypto", "b_dunno", "SMI"))
+
+df_PYRR_F_cor = subset(df_PYRR_F, select = c("TailLength", "Crest", "Wing", "BillLength", "BillWidth", "Glucose_avg", "Ketones_avg", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "SMI"))
+"vit_e", "vit_a", "vio", "anther", "lutein", "zeaxan", "b_crypto", "b_dunno", "SMI"))
+
+
+NOCA_M_matrix = rcorr(as.matrix(df_NOCA_M_cor),type="spearman")
+
+NOCA_M_matrix_r = data.frame(NOCA_M_matrix$r)
+NOCA_M_matrix_n = data.frame(NOCA_M_matrix$n)
+NOCA_M_matrix_p = data.frame(NOCA_M_matrix$P)
+
+write.csv(NOCA_M_matrix_r, 'NOCA_M_correlationmatrix_r.csv')
+write.csv(NOCA_M_matrix_n, 'NOCA_M_correlationmatrix_n.csv')
+write.csv(NOCA_M_matrix_p, 'NOCA_M_correlationmatrix_p.csv')
+
+
+
+# scale=T bases the PCA on the correlation matrix
+NOCA_M.PC.cor = prcomp(na.omit(df_NOCA_M_cor), center = TRUE, scale = TRUE)
+biplot(NOCA_M.PC.cor)
+
+df_NOCA_M_cor_morph = subset(df_NOCA_M, select = c("Urban_categorical", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_NOCA_M_cor_color = subset(df_NOCA_M, select = c("Urban_categorical", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_NOCA_M_cor_color_source = subset(df_NOCA_M, select = c("Urban_categorical", "Year_Adj", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_NOCA_M_cor_source = subset(df_NOCA_M, select = c("Source", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_NOCA_M_cor_morph = na.omit(df_NOCA_M_cor_morph)
+df_NOCA_M_cor_color = na.omit(df_NOCA_M_cor_color)
+df_NOCA_M_cor_source = na.omit(df_NOCA_M_cor_source)
+df_NOCA_M_cor_color_source = na.omit(df_NOCA_M_cor_color_source)
+
+# morph and color df_NOCA_M_cor_morph[,2:18]
+# scale=T bases the PCA on the correlation matrix
+NOCA_M_PC_morph = prcomp(df_NOCA_M_cor_morph[,2:7], center = TRUE, scale = TRUE)
+NOCA_M_PC_color = prcomp(df_NOCA_M_cor_color[,2:13], center = TRUE, scale = TRUE)
+NOCA_M_PC_source = prcomp(df_NOCA_M_cor_source[,2:7], center = TRUE, scale = TRUE)
+NOCA_M_PC_color_source = prcomp(df_NOCA_M_cor_color_source[,2:14], center = TRUE, scale = TRUE)
+
+
+ggbiplot(NOCA_M_PC_color_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_NOCA_M_cor_color_source$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(NOCA_M_PC_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_NOCA_M_cor_source$Source, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(NOCA_M_PC_morph, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_NOCA_M_cor_morph$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+
+ggbiplot(NOCA_M_PC_color, choices = c(1,2), obs.scale = 1, var.scale = 1,
+        groups = df_NOCA_M_cor_color$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+              legend.position = 'top')
+
+
+NOCA_F_matrix = rcorr(as.matrix(df_NOCA_F_cor),type="spearman")
+
+NOCA_F_matrix_r = data.frame(NOCA_F_matrix$r)
+NOCA_F_matrix_n = data.frame(NOCA_F_matrix$n)
+NOCA_F_matrix_p = data.frame(NOCA_F_matrix$P)
+
+write.csv(NOCA_F_matrix_r, 'NOCA_F_correlationmatrix_r.csv')
+write.csv(NOCA_F_matrix_n, 'NOCA_F_correlationmatrix_n.csv')
+write.csv(NOCA_F_matrix_p, 'NOCA_F_correlationmatrix_p.csv')
+
+
+
+df_NOCA_F_cor_morph = subset(df_NOCA_F_simple, select = c("Urban_categorical", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_NOCA_F_cor_color = subset(df_NOCA_F_simple, select = c("Urban_categorical", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_NOCA_F_cor_color_source = subset(df_NOCA_F_simple, select = c("Urban_categorical", "Year_Adj", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_NOCA_F_cor_source = subset(df_NOCA_F_simple, select = c("Source", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_NOCA_F_cor_morph = na.omit(df_NOCA_F_cor_morph)
+df_NOCA_F_cor_color = na.omit(df_NOCA_F_cor_color)
+df_NOCA_F_cor_source = na.omit(df_NOCA_F_cor_source)
+df_NOCA_F_cor_color_source = na.omit(df_NOCA_F_cor_color_source)
+
+# morph and color df_NOCA_F_cor_morph[,2:18]
+# scale=T bases the PCA on the correlation matrix
+NOCA_F_PC_morph = prcomp(df_NOCA_F_cor_morph[,2:7], center = TRUE, scale = TRUE)
+NOCA_F_PC_color = prcomp(df_NOCA_F_cor_color[,2:13], center = TRUE, scale = TRUE)
+NOCA_F_PC_source = prcomp(df_NOCA_F_cor_source[,2:7], center = TRUE, scale = TRUE)
+NOCA_F_PC_color_source = prcomp(df_NOCA_F_cor_color_source[,2:14], center = TRUE, scale = TRUE)
+
+
+ggbiplot(NOCA_F_PC_color_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_NOCA_F_cor_color_source$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(NOCA_F_PC_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_NOCA_F_cor_source$Source, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(NOCA_F_PC_morph, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_NOCA_F_cor_morph$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+
+ggbiplot(NOCA_F_PC_color, choices = c(1,2), obs.scale = 1, var.scale = 1,
+        groups = df_NOCA_F_cor_color$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+              legend.position = 'top')
+
+
+
+PYRR_M_matrix = rcorr(as.matrix(df_PYRR_M_cor),type="spearman")
+
+PYRR_M_matrix_r = data.frame(PYRR_M_matrix$r)
+PYRR_M_matrix_n = data.frame(PYRR_M_matrix$n)
+PYRR_M_matrix_p = data.frame(PYRR_M_matrix$P)
+
+write.csv(PYRR_M_matrix_r, 'PYRR_M_correlationmatrix_r.csv')
+write.csv(PYRR_M_matrix_n, 'PYRR_M_correlationmatrix_n.csv')
+write.csv(PYRR_M_matrix_p, 'PYRR_M_correlationmatrix_p.csv')
+
+
+
+
+
+# scale=T bases the PCA on the correlation matrix
+PYRR_M.PC.cor = prcomp(na.omit(df_PYRR_M_cor), center = TRUE, scale = TRUE)
+biplot(PYRR_M.PC.cor)
+
+df_PYRR_M_cor_morph = subset(df_PYRR_M, select = c("Urban_categorical", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_PYRR_M_cor_color = subset(df_PYRR_M, select = c("Urban_categorical", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_PYRR_M_cor_color_source = subset(df_PYRR_M, select = c("Urban_categorical", "Year_Adj", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_PYRR_M_cor_source = subset(df_PYRR_M, select = c("Source", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_PYRR_M_cor_morph = na.omit(df_PYRR_M_cor_morph)
+df_PYRR_M_cor_color = na.omit(df_PYRR_M_cor_color)
+df_PYRR_M_cor_source = na.omit(df_PYRR_M_cor_source)
+df_PYRR_M_cor_color_source = na.omit(df_PYRR_M_cor_color_source)
+
+# morph and color df_PYRR_M_cor_morph[,2:18]
+# scale=T bases the PCA on the correlation matrix
+PYRR_M_PC_morph = prcomp(df_PYRR_M_cor_morph[,2:7], center = TRUE, scale = TRUE)
+PYRR_M_PC_color = prcomp(df_PYRR_M_cor_color[,2:13], center = TRUE, scale = TRUE)
+PYRR_M_PC_source = prcomp(df_PYRR_M_cor_source[,2:7], center = TRUE, scale = TRUE)
+PYRR_M_PC_color_source = prcomp(df_PYRR_M_cor_color_source[,2:14], center = TRUE, scale = TRUE)
+
+
+ggbiplot(PYRR_M_PC_color_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_PYRR_M_cor_color_source$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(PYRR_M_PC_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_PYRR_M_cor_source$Source, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(PYRR_M_PC_morph, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_PYRR_M_cor_morph$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+
+ggbiplot(PYRR_M_PC_color, choices = c(1,2), obs.scale = 1, var.scale = 1,
+        groups = df_PYRR_M_cor_color$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+              legend.position = 'top')
+
+
+PYRR_F_matrix = rcorr(as.matrix(df_PYRR_F_cor),type="spearman")
+
+PYRR_F_matrix_r = data.frame(PYRR_F_matrix$r)
+PYRR_F_matrix_n = data.frame(PYRR_F_matrix$n)
+PYRR_F_matrix_p = data.frame(PYRR_F_matrix$P)
+
+write.csv(PYRR_F_matrix_r, 'PYRR_F_correlationmatrix_r.csv')
+write.csv(PYRR_F_matrix_n, 'PYRR_F_correlationmatrix_n.csv')
+write.csv(PYRR_F_matrix_p, 'PYRR_F_correlationmatrix_p.csv')
+
+
+
+
+
+df_PYRR_F_cor_morph = subset(df_PYRR_F_simple, select = c("Urban_categorical", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_PYRR_F_cor_color = subset(df_PYRR_F_simple, select = c("Urban_categorical", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_PYRR_F_cor_color_source = subset(df_PYRR_F_simple, select = c("Urban_categorical", "Year_Adj", "H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"))
+
+df_PYRR_F_cor_source = subset(df_PYRR_F_simple, select = c("Source", "Year_Adj", "TailLength", "Crest", "Wing", "BillLength", "BillWidth"))
+
+df_PYRR_F_cor_morph = na.omit(df_PYRR_F_cor_morph)
+df_PYRR_F_cor_color = na.omit(df_PYRR_F_cor_color)
+df_PYRR_F_cor_source = na.omit(df_PYRR_F_cor_source)
+df_PYRR_F_cor_color_source = na.omit(df_PYRR_F_cor_color_source)
+
+# morph and color df_PYRR_F_cor_morph[,2:18]
+# scale=T bases the PCA on the correlation matrix
+PYRR_F_PC_morph = prcomp(df_PYRR_F_cor_morph[,2:7], center = TRUE, scale = TRUE)
+PYRR_F_PC_color = prcomp(df_PYRR_F_cor_color[,2:13], center = TRUE, scale = TRUE)
+PYRR_F_PC_source = prcomp(df_PYRR_F_cor_source[,2:7], center = TRUE, scale = TRUE)
+PYRR_F_PC_color_source = prcomp(df_PYRR_F_cor_color_source[,2:14], center = TRUE, scale = TRUE)
+
+
+ggbiplot(PYRR_F_PC_color_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_PYRR_F_cor_color_source$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(PYRR_F_PC_source, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_PYRR_F_cor_source$Source, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+ggbiplot(PYRR_F_PC_morph, choices = c(1,2), obs.scale = 1, var.scale = 1,
+         groups = df_PYRR_F_cor_morph$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+               legend.position = 'top')
+
+
+ggbiplot(PYRR_F_PC_color, choices = c(1,2), obs.scale = 1, var.scale = 1,
+        groups = df_PYRR_F_cor_color$Urban_categorical, ellipse = TRUE) + scale_color_discrete(name = '') + theme(legend.direction = 'horizontal',
+              legend.position = 'top')
+
+
+########################################################################################
+# COLOR ANALYSES
+########################################################################################
+
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff")
+
+
+######## NOCA M ########
+
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source)"), REML = TRUE, data=df_NOCA_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  vif(Model.REML)
+
+  capture.output(summary(Model.REML),file=paste("NOCA_M_", item, "_urbancategorical_lmer.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(Model.REML),file=paste("NOCA_M_", item, "_urbancategorical_vif.txt"))
+
+  capture.output(anova(Model.REML),file=paste("NOCA_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("NOCA_M_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+for (item in list){
+  model = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical"),data=df_NOCA_M)
+
+  vif(model)
+
+  capture.output(summary(model),file=paste("NOCA_M_", item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(model),file=paste("NOCA_M_", item, "_urbancategorical_vif.txt"))
+
+  capture.output(anova(model),file=paste("NOCA_M_", item, "_urbancategorical_anoca.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+# Plotting 
+library(sjPlot)
+library(sjmisc)
+library(ggplot2)
+less bright breast, a more red bill, and a more red face mask 
+B_breast_diff, H_bill_diff, H_face_diff
+
+# breast brightness (urban)
+
+model = lm(B_breast_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+df_NOCA_M$Urban_categorical <- factor(df_NOCA_M$Urban_categorical , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+mydf$group <- factor(mydf$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+pdf(file = "breastbrightness_nocaM.pdf", width = 3, height = 4, useDingbats=FALSE)
+
+ggplot() + 
+  geom_boxplot(data=mydf, aes(x = group, y = predicted, fill = group), show.legend=FALSE) +
+  geom_point(data=df_NOCA_M, aes(x = Urban_categorical, y = B_breast_diff), position = position_jitter(w = 0.05, h = 0)) +
+  xlab("Urban category") +
+  ylab("Breast brightness") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+# bill hue
+model = lm(H_bill_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+
+pdf(file = "billhue_nocaM.pdf", width = 3, height = 4, useDingbats=FALSE)
+
+ggplot() + 
+  geom_boxplot(data=mydf, aes(x = group, y = predicted, fill = group), show.legend=FALSE) +  
+  geom_boxplot(show.legend = FALSE) +
+  geom_point(data=df_NOCA_M, aes(x = Urban_categorical, y = H_bill_diff), position = position_jitter(w = 0.05, h = 0)) +
+  xlab("Urban category") +
+  ylab("Bill hue") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+
+
+pdf(file = "billhue_nocaM_linear.pdf", width = 4, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = H_bill_diff, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Bill hue") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+dev.off()
+
+# hue mask
+model = lm(H_face_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+mydf$group <- factor(mydf$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+
+pdf(file = "maskhue_nocaM.pdf", width = 3, height = 4, useDingbats=FALSE)
+
+ggplot() + 
+  geom_boxplot(data=mydf, aes(x = group, y = predicted, fill = group), show.legend=FALSE) +  
+  geom_boxplot(show.legend = FALSE) +
+  geom_point(data=df_NOCA_M, aes(x = Urban_categorical, y = H_face_diff), position = position_jitter(w = 0.05, h = 0)) +
+  xlab("Urban category") +
+  ylab("Face hue") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+# tail length (both)
+df_NOCA_M_rename <- df_NOCA_M
+df_NOCA_M_rename <- df_NOCA_M_rename %>% 
+       rename("group" = "Urban_categorical")
+
+model = lm(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+pdf(file = "taillength_nocaM.pdf", width = 4, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = TailLength, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Tail length (mm)") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+dev.off()
+
+# face saturation (both)
+model = lm(S_face_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+
+
+pdf(file = "facesaturation_nocaM.pdf", width = 4, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = S_face_diff, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Face saturation") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+dev.off()
+
+# bill width (both)
+model = lm(BillWidth ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+
+
+pdf(file = "billwidth_nocaM.pdf", width = 4, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = BillWidth, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Bill width (mm)") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+dev.off()
+
+# bill length (year)
+
+model = lm(BillLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = "Year_Adj")
+
+pdf(file = "billlength_nocaM.pdf", width = 2, height = 2, useDingbats=FALSE)
+
+ggplot(mydf, aes(x = x, y = predicted)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.1) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = BillLength), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Bill length (mm)") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+## Face saturation (both)
+model = lm(S_face_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+pdf(file = "facesaturation_nocaM.pdf", width = 3, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = S_face_diff, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Face saturation") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+## making a data table with the output of the linear models in python
+
+import pandas as pd
+import scipy
+from scipy import stats
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.formula.api as smf
+import statsmodels.api as sm
+import statistics
+from scipy.stats import sem
+import math
+from statsmodels.miscmodels.ordinal_model import OrderedModel
+from sklearn.linear_model import LogisticRegression
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+df = pd.read_csv('df_lm_final.csv')
+df_NOCA_M = df[df["Species"] == "NOCA"][df["Sex"] == "M"]
+df_NOCA_F = df[df["Species"] == "NOCA"][df["Sex"] == "F"]
+df_PYRR_M = df[df["Species"] == "PYRR"][df["Sex"] == "M"]
+df_PYRR_F = df[df["Species"] == "PYRR"][df["Sex"] == "F"]
+
+Qlist = ["H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff"]
+
+rows = ['Intercept', 'Urban_categorical', 'Year_Adj', 'Year_Adj:Urban_categorical']
+
+sig = pd.DataFrame(columns=[Qlist], index = rows)
+coefficient = pd.DataFrame(columns=[Qlist], index = rows)
+sig_all = pd.DataFrame(columns=[Qlist], index = rows)
+
+
+rows_anova = ['Urban_categorical', 'Year_Adj', 'Year_Adj:Urban_categorical']
+
+sig_anova = pd.DataFrame(columns=[Qlist], index = rows_anova)
+coefficient_anova = pd.DataFrame(columns=[Qlist], index = rows_anova)
+
+d = dict()
+
+for trait in Qlist:
+    k = f'{trait} ~ Urban_categorical + Year_Adj + Year_Adj:Urban_categorical'
+    model = smf.ols(formula=k, data=df_NOCA_M).fit()
+    model.summary()
+    with open('matrix/noca_m/linear/' + trait + '_summary.csv', 'w') as fh:
+        fh.write(model.summary().as_csv())
+    anova_table = sm.stats.anova_lm(model, typ=2)
+    anova_table.to_csv('matrix/noca_m/anova/' + trait + '_anova_summary.csv')
+    model_summary = model.summary()
+    model_as_html = model_summary.tables[1].as_html()
+    df2 = pd.read_html(model_as_html, header=0, index_col=0)[0]
+    s = df2['P>|t|'] < 0.05
+    s = s.rename(index={f'{trait}': 'trait'})
+    sig[trait] = s
+    sig.loc['Intercept_all', trait] = 1
+    s_all = df2['P>|t|']
+    s_all = s_all.rename(index={f'{trait}': 'trait'})
+    sig_all[trait] = s_all
+    t = df2['coef']['Intercept']
+    q = df2['coef']
+    q = q.rename(index={f'{trait}': 'trait'})
+    sa = anova_table['PR(>F)']
+    sa = sa.rename(index={f'{trait}': 'trait'})
+    sig_anova[trait] = sa
+    ca = anova_table['sum_sq']
+    ca = ca.rename(index={f'{trait}': 'trait'})
+    coefficient_anova[trait] = ca
+    coefficient[trait] = q
+    coefficient.loc['Intercept_all', trait] = t
+    d[trait] = model.fittedvalues.values
+
+
+sig = sig.astype(int)
+sig_dir = coefficient * sig
+
+sig_anova_t = sig_anova.transpose()
+sig_anova_t.to_csv('matrix/noca_m/anova/anova_sig.csv')
+coefficient_anova_t = coefficient_anova.transpose()
+coefficient_anova_t.to_csv('matrix/noca_m/anova/anova_coef.csv')
+
+sig_dir_t = sig_dir.transpose()
+sig_dir_t.to_csv('matrix/noca_m/linear/linear_sig_direction.csv')
+
+coefficient_t = coefficient.transpose()
+coefficient_t.to_csv('matrix/noca_m/linear/linear_coefficients.csv')
+
+
+model = lm(B_breast_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_M)
+
+emm = emmeans(model, "Urban_categorical")
+emm
+pairs(emm)
+confint(pairs(emm))
+
+######## NOCA F ########
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + (1|Source)"), REML = TRUE, data=df_NOCA_F)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste("NOCA_F_", item, "_urbancategorical_lmer.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML),file=paste("NOCA_F_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("NOCA_F_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+Model.REML = lmer(B_crest_diff ~ Urban_categorical + (1|Source), REML = TRUE, data=df_NOCA_F)
+diff
+emm = emmeans(Model.REML, "Urban_categorical", lmer.df = "satterthwaite")
+emm
+contrast(emm)
+pairs(emm)
+
+
+
+for (item in list){
+  model = lm(paste(item, "~ Urban_categorical"),data=df_NOCA_F_simple)
+
+  capture.output(summary(model),file=paste("NOCA_F_", item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(model),file=paste("NOCA_F_", item, "_urbancategorical_anova.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+######## PYRR M ########
+
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source)"), REML = TRUE, data=df_PYRR_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste("PYRR_M_", item, "_urbancategorical_lmer.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(Model.REML),file=paste("PYRR_M_", item, "_urbancategorical_vif.txt"))
+
+  capture.output(anova(Model.REML),file=paste("PYRR_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("PYRR_M_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+for (item in list){
+  model = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical"),data=df_PYRR_M)
+
+  vif(model)
+
+  capture.output(summary(model),file=paste("PYRR_M_", item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(model),file=paste("PYRR_M_", item, "_urbancategorical_vif.txt"))
+
+  capture.output(anova(model),file=paste("PYRR_M_", item, "_urbancategorical_anova.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+
+model = lm(H_bill_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_M)
+
+emm = emmeans(model, "Urban_categorical")
+emm
+pairs(emm)
+confint(pairs(emm))
+
+# plotting 
+# crest brightness (urban)
+model = lm(B_crest_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+mydf$group <- factor(mydf$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+pdf(file = "crest brightness_pyrrM.pdf", width = 3, height = 4, useDingbats=FALSE)
+
+ggplot() + 
+  geom_boxplot(data=mydf, aes(x = group, y = predicted, fill = group), show.legend=FALSE) +  geom_boxplot(show.legend = FALSE) +
+  geom_point(data=df_PYRR_M, aes(x = Urban_categorical, y = B_crest_diff), position = position_jitter(w = 0.05, h = 0)) +
+  xlab("Urban category") +
+  ylab("Crest brightness") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+# bill width (both)
+df_PYRR_M_rename <- df_PYRR_M
+df_PYRR_M_rename <- df_PYRR_M_rename %>% 
+       rename("group" = "Urban_categorical")
+
+model = lm(BillWidth ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+mydf$group <- factor(mydf$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+df_PYRR_M_rename$group <- factor(df_PYRR_M_rename$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+pdf(file = "billwidth_pyrrM.pdf", width = 4, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_PYRR_M_rename, aes(x = Year_Adj, y = BillWidth, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Bill width (mm)") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+dev.off()
+# tail length (year)
+model = lm(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_NOCA_M)
+
+
+mydf <- ggpredict(model, terms = "Year_Adj")
+
+pdf(file = "taillength_pyrrM.pdf", width = 2, height = 2, useDingbats=FALSE)
+
+ggplot(mydf, aes(x = x, y = predicted)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.1) +
+  geom_point(data=df_NOCA_M_rename, aes(x = Year_Adj, y = TailLength), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Tail length (mm)") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+# tail length (both)
+
+df_PYRR_M_rename <- df_PYRR_M
+df_PYRR_M_rename <- df_PYRR_M_rename %>% 
+       rename("group" = "Urban_categorical")
+
+model = lm(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_M)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+mydf$group <- factor(mydf$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+df_PYRR_M_rename$group <- factor(df_PYRR_M_rename$group , levels=c("1_Urban", "2_UrbanOutskirts", "0_Rural"))
+
+pdf(file = "taillength_pyrrM_linear.pdf", width = 2, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_PYRR_M_rename, aes(x = Year_Adj, y = TailLength, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Tail length") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+
+######## PYRR F ########
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source)"), REML = TRUE, data=df_PYRR_F)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste("PYRR_F_", item, "_urbancategorical_lmer.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(Model.REML),file=paste("PYRR_F_", item, "_urbancategorical_vif.txt"))
+
+  capture.output(anova(Model.REML),file=paste("PYRR_F_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("PYRR_F_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+Model.REML = lmer(S_crest_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_F)
+diff
+emm = emmeans(Model.REML, "Urban_categorical", lmer.df = "satterthwaite")
+emm
+contrast(emm)
+pairs(emm)
+
+for (item in list){
+  model = lm(paste(item, "~ Urban_categorical"),data=df_PYRR_F)
+
+  capture.output(summary(model),file=paste("PYRR_F_", item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(model),file=paste("PYRR_F_", item, "_urbancategorical_anova.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+for (item in list){
+  model = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical"),data=df_PYRR_F_simple)
+
+  capture.output(summary(model),file=paste("PYRR_F_", item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(model),file=paste("PYRR_F_", item, "_urbancategorical_vif.txt"))
+
+  capture.output(anova(model),file=paste("PYRR_F_", item, "_urbancategorical_anova.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+}
+
+model = lm(H_face_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_PYRR_F_simple)
+
+emm = emmeans(model, "Urban_categorical")
+emm
+pairs(emm)
+confint(pairs(emm))
+
+e <- allEffects(model)
+print(e)
+plot(e)
+
+# plotting 
+# breast saturation (urban)
+model = lm(S_breast_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_F_simple)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+pdf(file = "breastsaturation_pyrrF.pdf", width = 3, height = 4, useDingbats=FALSE)
+
+ggplot() + 
+  geom_boxplot(data=mydf, aes(x = group, y = predicted, fill = group), show.legend=FALSE) +  geom_boxplot(show.legend = FALSE) +
+  geom_point(data=df_PYRR_F_simple, aes(x = Urban_categorical, y = S_breast_diff), position = position_jitter(w = 0.05, h = 0)) +
+  xlab("Urban category") +
+  ylab("Breast saturation") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+# face hue (both)
+
+model = lm(H_face_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_F_simple)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+pdf(file = "facehue_pyrrF.pdf", width = 3, height = 2, useDingbats=FALSE)
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_PYRR_F_rename, aes(x = Year_Adj, y = H_face_diff, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Face hue") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+# wing length (year)
+df_PYRR_F_rename <- df_PYRR_F_simple
+df_PYRR_F_rename <- df_PYRR_F_rename %>% 
+       rename("group" = "Urban_categorical")
+
+model = lm(Wing ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_F_simple)
+
+
+mydf <- ggpredict(model, terms = "Year_Adj")
+
+pdf(file = "winglength_pyrrF.pdf", width = 2, height = 2, useDingbats=FALSE)
+
+ggplot(mydf, aes(x = x, y = predicted)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.1) +
+  geom_point(data=df_PYRR_F_rename, aes(x = Year_Adj, y = Wing), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Wing length (mm)") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+dev.off()
+
+df_PYRR_F_rename <- df_PYRR_F_simple
+df_PYRR_F_rename <- df_PYRR_F_rename %>% 
+       rename("group" = "Urban_categorical")
+
+model = lm(Wing ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_M)
+
+
+mydf <- ggpredict(model, terms = "Year_Adj")
+
+ggplot(mydf, aes(x = x, y = predicted)) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.1) +
+  geom_point(data=df_PYRR_M_rename, aes(x = Year_Adj, y = Wing), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Wing length (mm)") +
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+
+# wing length  (both)
+
+model = lm(Wing ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical ,data=df_PYRR_F_simple)
+
+
+mydf <- ggpredict(model, terms = c("Year_Adj", "Urban_categorical"))
+
+
+ggplot() +
+  geom_line(data=mydf, aes(x = x, y = predicted, colour = group), show.legend = FALSE) +
+  geom_ribbon(data=mydf, aes(x = x, y = predicted, colour = group, ymin = conf.low, ymax = conf.high), alpha = 0.1, show.legend = FALSE) +
+  facet_grid(cols = vars(group)) +
+  geom_point(data=df_PYRR_F_rename, aes(x = Year_Adj, y = Wing, colour = group), show.legend = FALSE) +
+  xlab("Year before present") +
+  ylab("Wing") +
+   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+
+
+########################################################################################
+# MORPHOLOGICAL ANALYSES
+########################################################################################
+
+list <- list("TailLength", "Crest", "Wing", "BillLength", "Head", "BillWidth", "SMI")
+
+######## NOCA M ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_NOCA_M)
+
+  capture.output(vif(model_lm),file=paste("NOCA_M_", item, "_morphology_vif.txt"))
+
+  capture.output(anova(model_lm),file=paste("NOCA_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(summary(model_lm),file=paste("NOCA_M_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+# Gave error:
+# there are higher-order terms (interactions) in this model
+# consider setting type = 'predictor'; see ?vif
+
+model = lm(TailLength ~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_M)
+
+emm = emmeans(model, "Urban_categorical", lmer.df = "satterthwaite")
+emm
+contrast(emm)
+pairs(emm)
+
+
+######## NOCA F ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus"), data = df_NOCA_F)
+
+  capture.output(vif(model_lm),file=paste("NOCA_F_", item, "_morphology_vif.txt"))
+
+  capture.output(anova(model_lm),file=paste("NOCA_F", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(summary(model_lm),file=paste("NOCA_F", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+######## PYRR M ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_PYRR_M)
+
+  capture.output(vif(model_lm),file=paste("PYRR_M_", item, "_morphology_vif.txt"))
+
+  capture.output(anova(model_lm),file=paste("PYRR_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(summary(model_lm),file=paste("PYRR_M_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+model = lm(Head ~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical, data=df_PYRR_M)
+
+emm = emmeans(model, "Urban_categorical", lmer.df = "satterthwaite")
+emm
+contrast(emm)
+pairs(emm)
+
+
+model = lm( ~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_M)
+
+emm = emmeans(model, "Urban_categorical", lmer.df = "satterthwaite")
+emm
+contrast(emm)
+pairs(emm)
+
+######## PYRR F ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_PYRR_F_simple)
+
+  capture.output(anova(model_lm),file=paste("PYRR_F_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(vif(model_lm),file=paste("PYRR_F_", item, "_morphology_vif.txt"))
+
+  capture.output(summary(model_lm),file=paste("PYRR_F_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+######## SMI ########
+
+list <- list("SMI")
+
+######## NOCA M ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical"), data = df_NOCA_M)
+
+  capture.output(vif(model_lm),file=paste("NOCA_M_", item, "_morphology_vif.txt"))
+
+  capture.output(summary(model_lm),file=paste("NOCA_M_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+######## NOCA F ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical"), data = df_NOCA_F_simple)
+
+  capture.output(summary(model_lm),file=paste("NOCA_F_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+######## PYRR M ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical"), data = df_PYRR_M)
+
+  capture.output(summary(model_lm),file=paste("PYRR_M_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+######## PYRR F ########
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical"), data = df_PYRR_F_simple)
+
+  capture.output(summary(model_lm),file=paste("PYRR_F_", item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+########################################################################################
+# PHYSIOLOGICAL ANALYSES
+########################################################################################
+
+list <- list("Glucose_avg", "Ketones_avg", "vit_e", "vit_a", "vio", "anther", "lutein", "zeaxan", "b_crypto", "b_car", "car_total", "SMI")
+#
+
+df_phys = df_all[df_all$Urban_categorical != '0_Rural',]
+
+for (item in list){
+  model = glm(paste(item, "~ Urban_categorical * Species"), data = df_phys)
+  capture.output(vif(model),file=paste("all_", item, "_physiology_vif.txt"))
+
+  capture.output(summary(model),file=paste("all_", item, "_physiology.txt"))
+
+  model_year = glm(paste(item, "~ Year_Adj * Species"), data = df_phys)
+  capture.output(summary(model_year),file=paste("all_year_", item, "_physiology.txt"))
+
+  model_both = glm(paste(item, "~ Year_Adj + Urban_categorical * Species"), data = df_phys)
+  capture.output(vif(model_both),file=paste("all_both_", item, "_physiology_vif.txt"))
+  capture.output(summary(model_both),file=paste("all_both_", item, "_physiology.txt"))
+
+  }
+
+
+
+for (item in list){
+  model = lm(paste(item, "~ Urban_categorical * Species"), data = df_phys)
+  capture.output(vif(model),file=paste("all_", item, "_physiology_vif.txt"))
+
+  capture.output(summary(model),file=paste("all_", item, "_physiology.txt"))
+
+  model_year = lm(paste(item, "~ Year_Adj * Species"), data = df_phys)
+  capture.output(summary(model_year),file=paste("all_year_", item, "_physiology.txt"))
+
+  model_both = lm(paste(item, "~ Year_Adj + Urban_categorical * Species"), data = df_phys)
+  capture.output(vif(model_both),file=paste("all_both_", item, "_physiology_vif.txt"))
+  capture.output(summary(model_both),file=paste("all_both_", item, "_physiology.txt"))
+
+  }
+
+######## NOCA M ########
+
+
+
+e <- allEffects(model)
+plot(e)
+
+
+emm = emmeans(model, "Urban_categorical")
+contrast(emm, "pairwise", adjust = "Tukey")
+
+model = glm(Glucose_avg ~ Urban_categorical * Species, data = df_phys)
+summary(model)
+
+
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Tarsus + (+1|Year_Adj)"), data = df_NOCA_M)
+
+  capture.output(vif(Model.REML),file=paste("NOCA_M_", item, "_physiology_vif.txt"))
+
+  capture.output(summary(Model.REML),file=paste("NOCA_M_", item, "_physiology.txt"))
+
+  capture.output(anova(Model.REML),file=paste("NOCA_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("NOCA_M_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+for (item in list){
+  Model.REML = lm(paste(item, "~ Urban_categorical"), data = df_NOCA_M)
+
+  capture.output(summary(Model.REML),file=paste("NOCA_M_", item, "_physiology.txt"))
+
+  capture.output(anova(Model.REML),file=paste("NOCA_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+######## PYRR M ########
+
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Tarsus + (+1|Year_Adj)"), data = df_PYRR_M)
+
+  capture.output(vif(Model.REML),file=paste("PYRR_M_", item, "_physiology_vif.txt"))
+
+  capture.output(summary(Model.REML),file=paste("PYRR_M_", item, "_physiology.txt"))
+
+  capture.output(anova(Model.REML),file=paste("PYRR_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("PYRR_M_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+
+for (item in list){
+  Model.REML = lm(paste(item, "~ Urban_categorical"), data = df_PYRR_M)
+
+  capture.output(summary(Model.REML),file=paste("NOCA_M_", item, "_physiology.txt"))
+
+  capture.output(anova(Model.REML),file=paste("NOCA_M_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+######## PYRR F ########
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Tarsus + (+1|Year_Adj)"), data = df_PYRR_F)
+
+  capture.output(vif(Model.REML),file=paste("PYRR_F_", item, "_physiology.txt"))
+
+
+  capture.output(summary(Model.REML),file=paste("PYRR_F_", item, "_physiology.txt"))
+
+  capture.output(anova(Model.REML),file=paste("PYRR_F_", item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(anova(Model.REML, ddf = "Kenward-Roger"),file=paste("PYRR_F_", item, "_urbancategorical_KR.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+
+
+### grouping distance from urban area to determine urban categories
+
+df_suburbanrural<-df[!(df$DistanceToUrbanArea_meters==0),]
+
+
+hist(data$x,                                         # Base R histogram with colors
+     breaks = my_breaks,
+     col = my_colors)
+
+my_breaks <- hist(df_suburbanrural$DistanceToUrbanArea_meters, breaks=100)$breaks
+
+my_colors <- rep("#1b98e0", length(my_breaks))       # Specify colors corresponding to breaks
+
+my_colors[my_breaks > 12000] <- "#353436"
+
+hist(df_suburbanrural$DistanceToUrbanArea_meters, breaks=100, xlab = "Distance to Urban Area (meters)", main=paste("Histogram of suburban and rural samples"), col = my_colors)
+

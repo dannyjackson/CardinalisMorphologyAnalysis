@@ -1,0 +1,646 @@
+
+
+
+
+
+
+
+# END OF PYTHON
+# START OF R
+
+install.packages("effects")
+R
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(afex)
+library(ggplot2)
+library(emmeans)
+library(jtools)
+library(tidyr)
+library(interactions)
+library(effects)
+
+
+df = read.csv('df_lm.csv')
+
+df$Year_Adj = 2022 - df$COLLECTING_year
+
+df[df$ID == 'NOCA_005',]$Tarsus = 25.1
+df[df$ID == 'NOCA_008',]$Tarsus = 26.6
+df[df$ID == 'PYRR_004',]$Tarsus = 26.2
+
+df_NOCA_M = df[df$Species == 'NOCA' & df$Sex == 'M',]
+df_NOCA_F = df[df$Species == 'NOCA' & df$Sex == 'F',]
+df_PYRR_M = df[df$Species == 'PYRR' & df$Sex == 'M',]
+df_PYRR_F = df[df$Species == 'PYRR' & df$Sex == 'F',]
+
+# compute SMI
+# https://onlinelibrary.wiley.com/doi/10.1111/j.1600-0706.2009.17643.x
+
+NOCA_M_scalar = coef(lm(Mass ~ Tarsus, data = df_NOCA_M))["Tarsus"]
+NOCA_M_tarsus = mean(df_NOCA_M$Tarsus, na.rm=TRUE)
+df_NOCA_M$SMI = df_NOCA_M$Mass * ((NOCA_M_tarsus / df_NOCA_M$Tarsus)^NOCA_M_scalar)
+
+
+NOCA_F_scalar = coef(lm(Mass ~ Tarsus, data = df_NOCA_F))["Tarsus"]
+NOCA_F_tarsus = mean(df_NOCA_F$Tarsus, na.rm=TRUE)
+df_NOCA_F$SMI = df_NOCA_F$Mass * ((NOCA_F_tarsus / df_NOCA_F$Tarsus)^NOCA_F_scalar)
+
+
+PYRR_M_scalar = coef(lm(Mass ~ Tarsus, data = df_PYRR_M))["Tarsus"]
+PYRR_M_tarsus = mean(df_PYRR_M$Tarsus, na.rm=TRUE)
+df_PYRR_M$SMI = df_PYRR_M$Mass * ((PYRR_M_tarsus / df_PYRR_M$Tarsus)^PYRR_M_scalar)
+
+
+PYRR_F_scalar = coef(lm(Mass ~ Tarsus, data = df_PYRR_F))["Tarsus"]
+PYRR_F_tarsus = mean(df_PYRR_F$Tarsus, na.rm=TRUE)
+df_PYRR_F$SMI = df_PYRR_F$Mass * ((PYRR_F_tarsus / df_PYRR_F$Tarsus)^PYRR_F_scalar)
+
+write.csv(df, 'df_lm_final.csv')
+
+
+nrow(df_NOCA_M)
+nrow(df_NOCA_F)
+nrow(df_PYRR_M)
+nrow(df_PYRR_F)
+
+> nrow(df_NOCA_M)
+[1] 39
+> nrow(df_NOCA_F)
+[1] 9
+> nrow(df_PYRR_M)
+[1] 34
+> nrow(df_PYRR_F)
+[1] 22
+
+
+# Color models
+# https://cran.r-project.org/web/packages/emmeans/vignettes/sophisticated.html
+
+# NOCA M
+summary(lmer(formula = H_bill_diff ~ DistanceToUrbanArea + (1|Year_Adj) + (1|Source), data=df_NOCA_M))
+summary(lmer(formula = H_breast_diff ~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source), data=df_NOCA_M))
+
+# Significance testing
+
+
+
+
+
+# just Satterthwaite
+
+# NOCA M
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+list <- list("TailLength", "BillLength")
+
+list <- list("SMI")
+for (item in list){
+  Model.REML = lmer(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source)"), REML = TRUE, data=df_NOCA_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source)"), REML = TRUE, data=df_NOCA_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+
+
+
+
+# NOCA F
+
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+# broke on Mass
+list <- list("TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+# broke on "CloacalWidth" due to small sampling, nothing else past it had enough individuals between sources
+
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source)"), REML = TRUE, data=df_NOCA_F)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+list <- list("TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+
+df_NOCA_F[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+# 2 suburban, 2 urban, 5 rural.
+df_NOCA_F_simple = df_NOCA_F
+
+df_NOCA_F_simple[df_NOCA_F_simple$Urban_categorical != 'Rural',]$Urban_categorical = '1_Not_Rural'
+
+df_NOCA_F_simple[df_NOCA_F_simple$Urban_categorical == 'Rural',]$Urban_categorical = '0_Rural'
+
+df_NOCA_F_simple[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+for (item in list){
+  Model = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical"),data=df_NOCA_F_simple)
+
+  capture.output(summary(Model),file=paste(item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+# PYRR M
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "SMI")
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source)"), REML = TRUE, data=df_PYRR_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source)"), REML = TRUE, data=df_PYRR_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+# PYRR F
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "SMI")
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source)"), REML = TRUE, data=df_PYRR_F)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+for (item in list){
+  Model.REML = lmer(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source)"), REML = TRUE, data=df_PYRR_F)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_urbancategorical_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+capture.output(summary(Model.REML),file=paste(item, "_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+
+list = list("CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg")
+
+for (item in list){
+  model_lm = lm(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea") , data = df_NOCA_M)
+  capture.output(summary(model_lm), file=paste("NOCA_M_", item, ".txt"))
+
+  model_lm = lm(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea") , data = df_NOCA_F)
+  capture.output(summary(model_lm), file=paste("NOCA_F_", item, ".txt"))
+
+  model_lm = lm(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea") , data = df_PYRR_M)
+  capture.output(summary(model_lm), file=paste("PYRR_M_", item, ".txt"))
+
+  model_lm = lm(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea") , data = df_PYRR_F)
+  capture.output(summary(model_lm), file=paste("PYRR_F_", item, ".txt"))
+}
+
+
+df_PYRR_F_simple[c("H_face_diff","Source","Urban_categorical", "Year_Adj")]
+
+# 6 suburban (All UAZ), 7 urban (All field or UAZ), 9 rural (all UAZ or UWBM)
+df_PYRR_F_simple = df_PYRR_F
+
+df_PYRR_F_simple[df_PYRR_F_simple$Urban_categorical != 'Rural',]$Urban_categorical = '1_Not_Rural'
+
+df_PYRR_F_simple[df_PYRR_F_simple$Urban_categorical == 'Rural',]$Urban_categorical = '0_Rural'
+
+
+df_PYRR_F_simple[c("H_bill_diff","Source","Urban_categorical", "Year_Adj")]
+
+for (item in list){
+  Model = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical"),data=df_PYRR_F_simple)
+
+  capture.output(summary(Model),file=paste(item, "_urbancategorical_lm.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+
+
+
+
+
+list = list("CloacalDepth", "Glucose_avg", "Ketones_avg")
+list = list("Ketones_avg")
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical") , data = df_NOCA_M)
+  capture.output(summary(model_lm), file=paste("NOCA_M_urbancategorical_", item, ".txt"))
+
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical") , data = df_NOCA_F)
+  capture.output(summary(model_lm), file=paste("NOCA_F_urbancategorical_", item, ".txt"))
+
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical") , data = df_PYRR_M)
+  capture.output(summary(model_lm), file=paste("PYRR_M_urbancategorical_", item, ".txt"))
+
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical") , data = df_PYRR_F)
+  capture.output(summary(model_lm), file=paste("PYRR_F_urbancategorical_", item, ".txt"))
+}
+
+df_NOCA = rbind(df_NOCA_M, df_NOCA_F)
+df_PYRR = rbind(df_PYRR_M, df_PYRR_F)
+
+df_NOCA[, c("ID", "Year_Adj", "DistanceToUrbanArea", "Ketones_avg")]
+df_PYRR[, c("ID", "Year_Adj", "DistanceToUrbanArea", "Ketones_avg")]
+
+
+
+
+for (item in list){
+  model_lm = lm(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea") , data = df_NOCA)
+  capture.output(summary(model_lm), file=paste("NOCA_", item, ".txt", sep=''))
+
+  model_lm = lm(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea") , data = df_PYRR)
+  capture.output(summary(model_lm), file=paste("PYRR_", item, ".txt", sep=''))
+}
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical") , data = df_NOCA)
+  capture.output(summary(model_lm), file=paste("NOCA_", item, ".txt", sep=''))
+
+  model_lm = lm(paste(item, "~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical") , data = df_PYRR)
+  capture.output(summary(model_lm), file=paste("PYRR_", item, ".txt", sep=''))
+}
+
+summary(lm(Glucose_avg ~ DistanceToUrbanArea + Year_Adj + Species + Year_Adj*DistanceToUrbanArea, data = df))
+
+gluc = lm(Glucose_avg ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df)
+AIC = stepAIC(gluc, direction = "backward")
+AIC$call
+model_lm = lm(formula = Glucose_avg ~ DistanceToUrbanArea + Year_Adj + DistanceToUrbanArea:Year_Adj, data = df)
+capture.output(summary(model_lm), file=paste("glucose_lm.txt", sep=''))
+
+
+gluc = lm(Glucose_avg ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(gluc, direction = "backward")
+AIC$call
+model_lm = lm(formula = Glucose_avg ~ Urban_categorical, data = df_field)
+capture.output(summary(model_lm), file=paste("glucose_lm_urbancategorical.txt", sep=''))
+
+
+
+
+
+keto = lm(Ketones_avg ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df)
+AIC = stepAIC(keto, direction = "backward")
+AIC$call
+model_lm = lm(formula = Ketones_avg ~ DistanceToUrbanArea + Species + DistanceToUrbanArea:Species, data = df)
+capture.output(summary(model_lm), file=paste("ketones_lm.txt", sep=''))
+
+keto = lm(Ketones_avg ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(keto, direction = "backward")
+AIC$call
+model_lm = lm(formula = Ketones_avg ~ Urban_categorical + Species + Urban_categorical:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("ketones_lm_urbancategorical.txt", sep=''))
+
+keto = lmer(Ketones_avg ~ Urban_categorical + Tarsus + (+1|Year_Adj), REML = TRUE, data = df_NOCA_M)
+anova(keto) #Performs F test on fixed effects using Satterthwaite approximation
+anova(keto, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+summary(keto)
+
+
+keto = lmer(Ketones_avg ~ Urban_categorical + Tarsus + (+1|Year_Adj), REML = TRUE, data = df_PYRR_M)
+anova(keto) #Performs F test on fixed effects using Satterthwaite approximation
+anova(keto, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+summary(keto)
+
+e <- allEffects(keto)
+print(e)
+plot(e)
+
+
+model_lm = lm(SMI ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_M)
+AIC = stepAIC(model_lm, direction = "backward")
+AIC$call
+model_lm = lm(formula = SMI ~ Urban_categorical + Year_Adj + Year_Adj * Urban_categorical, data = df_NOCA_M)
+capture.output(summary(model_lm), file=paste("SMI_NOCA_M_lm.txt", sep=''))
+
+
+model_lm = lm(SMI ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_F)
+AIC = stepAIC(model_lm, direction = "backward")
+AIC$call
+#   AIC is -infinity for this model, so 'stepAIC' cannot proceed
+model_lm = lm(SMI ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_NOCA_F)
+capture.output(summary(model_lm), file=paste("SMI_NOCA_F_lm.txt", sep=''))
+
+
+
+model_lm = lm(SMI ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_PYRR_M)
+AIC = stepAIC(model_lm, direction = "backward")
+AIC$call
+model_lm = lm(formula = SMI ~ 1, data = df_PYRR_M)
+capture.output(summary(model_lm), file=paste("SMI_PYRR_M_lm.txt", sep=''))
+
+# marty martin florida cardinal coloration
+# brittney leigh south florida
+# amanda rodewald jfo 2010 jones and rodewald
+
+model_lm = lm(SMI ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data=df_PYRR_F)
+AIC = stepAIC(model_lm, direction = "backward")
+AIC$call
+model_lm = lm(formula = SMI ~ 1, data = df_PYRR_F)
+capture.output(summary(model_lm), file=paste("SMI_PYRR_F_lm.txt", sep=''))
+
+
+# significant interaction term between DistanceToUrbanArea:Species
+
+df_smi = rbind(df_NOCA_M, df_NOCA_F, df_PYRR_M, df_PYRR_F)
+
+
+smi = lm(SMI ~ DistanceToUrbanArea + Year_Adj + Species + Sex + Species*Sex*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_smi)
+AIC = stepAIC(smi, direction = "backward")
+AIC$call
+model_lm = lm(formula = SMI ~ DistanceToUrbanArea + Year_Adj + Species + Sex + Species * Sex * DistanceToUrbanArea + Year_Adj * DistanceToUrbanArea, data = df_smi)
+capture.output(summary(model_lm), file=paste("smi_all_lm.txt", sep=''))
+
+smi = lm(SMI ~ Urban_categorical + Year_Adj + Species + Sex + Species*Sex*Urban_categorical + Year_Adj*Urban_categorical, data = df_smi)
+AIC = stepAIC(smi, direction = "backward")
+AIC$call
+model_lm = lm(formula = SMI ~ Urban_categorical + Species + Sex + Urban_categorical:Sex, data = df_smi)
+capture.output(summary(model_lm), file=paste("smi_all_lm_urbancategorical.txt", sep=''))
+
+# Urban: 15
+# Suburban: 7
+# Rural: 9
+
+df_field = df[df$Source == 'Field',]
+df_field[df_field$Urban_categorical == 'Suburban',]$Urban_categorical = 'Not_Urban'
+
+list <- list("vit_a", "vio", "anther", "lutein", "zeaxan", "b_crypto", "b_dunno")
+
+
+# vit_a
+vit_a = lm(vit_a ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(vit_a, direction = "backward")
+AIC$call
+lm(formula = vit_a ~ 1, data = df_field)
+capture.output(summary(model_lm), file=paste("vitA_lm.txt", sep=''))
+
+vit_a = lm(vit_a ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(vit_a, direction = "backward")
+AIC$call
+model_lm = lm(formula = vit_a ~ Urban_categorical + Species + Urban_categorical:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("vitA_lm_urbancategorical.txt", sep=''))
+
+
+# vio
+vio = lm(vio ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(vio, direction = "backward")
+AIC$call
+model_lm = lm(formula = vio ~ DistanceToUrbanArea + Year_Adj + Species + DistanceToUrbanArea:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("vio_lm.txt", sep=''))
+
+vio = lm(vio ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(vio, direction = "backward")
+AIC$call
+model_lm = lm(formula = vio ~ Urban_categorical + Year_Adj + Species + Urban_categorical:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("vio_lm_urbancategorical.txt", sep=''))
+
+
+
+# anther
+anther = lm(anther ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(anther, direction = "backward")
+AIC$call
+model_lm = lm(formula = anther ~ DistanceToUrbanArea + Year_Adj + Species + DistanceToUrbanArea:Year_Adj, data = df_field)
+capture.output(summary(model_lm), file=paste("anther_lm.txt", sep=''))
+
+anther = lm(anther ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(anther, direction = "backward")
+AIC$call
+model_lm = lm(formula = anther ~ Urban_categorical + Species, data = df_field)
+capture.output(summary(model_lm), file=paste("anther_lm_urbancategorical.txt", sep=''))
+
+
+
+# lutein
+lutein = lm(lutein ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(lutein, direction = "backward")
+AIC$call
+model_lm = lm(formula = lutein ~ DistanceToUrbanArea + Year_Adj + DistanceToUrbanArea:Year_Adj, data = df_field)
+capture.output(summary(model_lm), file=paste("lutein_lm.txt", sep=''))
+
+lutein = lm(lutein ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(lutein, direction = "backward")
+AIC$call
+model_lm = lm(formula = lutein ~ Urban_categorical + Year_Adj + Species + Urban_categorical:Year_Adj, data = df_field)
+capture.output(summary(model_lm), file=paste("lutein_lm_urbancategorical.txt", sep=''))
+
+
+
+# zeaxan
+zeaxan = lm(zeaxan ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(zeaxan, direction = "backward")
+AIC$call
+model_lm = lm(formula = zeaxan ~ DistanceToUrbanArea + Year_Adj + DistanceToUrbanArea:Year_Adj, data = df_field)
+capture.output(summary(model_lm), file=paste("zeaxan_lm.txt", sep=''))
+
+zeaxan = lm(zeaxan ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(zeaxan, direction = "backward")
+AIC$call
+model_lm = lm(formula = zeaxan ~ Urban_categorical + Year_Adj, data = df_field)
+capture.output(summary(model_lm), file=paste("zeaxan_lm_urbancategorical.txt", sep=''))
+
+
+# b_crypto
+b_crypto = lm(b_crypto ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(b_crypto, direction = "backward")
+AIC$call
+model_lm = lm(formula = b_crypto ~ DistanceToUrbanArea + Species + DistanceToUrbanArea:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("b_crypto_lm.txt", sep=''))
+
+b_crypto = lm(b_crypto ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(b_crypto, direction = "backward")
+AIC$call
+model_lm = lm(formula = b_crypto ~ Urban_categorical + Species + Urban_categorical:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("b_crypto_lm_urbancategorical.txt", sep=''))
+
+
+# b_dunno
+b_dunno = lm(b_dunno ~ DistanceToUrbanArea + Year_Adj + Species + Species*DistanceToUrbanArea + Year_Adj*DistanceToUrbanArea, data = df_field)
+AIC = stepAIC(b_dunno, direction = "backward")
+AIC$call
+model_lm = lm(formula = b_dunno ~ DistanceToUrbanArea + Year_Adj + DistanceToUrbanArea:Year_Adj, data = df_field)
+capture.output(summary(model_lm), file=paste("b_dunno_lm.txt", sep=''))
+
+b_dunno = lm(b_dunno ~ Urban_categorical + Year_Adj + Species + Species*Urban_categorical + Year_Adj*Urban_categorical, data = df_field)
+AIC = stepAIC(b_dunno, direction = "backward")
+AIC$call
+model_lm = lm(formula = b_dunno ~ Urban_categorical + Species + Urban_categorical:Species, data = df_field)
+capture.output(summary(model_lm), file=paste("b_dunno_lm_urbancategorical.txt", sep=''))
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Morphology as linear model, not accounting for source (because why would I)
+
+list <- list("Mass", "TailLength", "Crest", "Wing", "BillLength", "Head", "BillWidth", "CloacalWidth", "CloacalDepth", "Glucose_avg", "Ketones_avg", "SMI")
+
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_NOCA_M)
+
+  capture.output(summary(model_lm),file=paste(item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_NOCA_F_simple)
+
+  capture.output(summary(model_lm),file=paste(item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_PYRR_M)
+
+  capture.output(summary(model_lm),file=paste(item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+list <- list("Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "SMI")
+
+for (item in list){
+  model_lm = lm(paste(item, "~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical"), data = df_PYRR_F_simple)
+
+  capture.output(summary(model_lm),file=paste(item, "_morphology.txt"))#gives model output with estimated df and p values using Satterthwaite
+}
+
+install_github("rspatial/raster")
+library('RStoolbox')
+rasters <- stack(myRasters)
+
+pca1 <- rasterPCA(rasters)
+
+
+# includes both KR and Satterthwaite
+for (item in list){
+  model = lmer(formula = H_breast_diff ~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source), data=df_NOCA_M)
+  capture.output(summary(model),file=paste(item, "_lm.txt"))
+
+  Model.REML = lmer(paste(item, "~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source)"), REML = TRUE, data=df_NOCA_M)
+  anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+  anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+  capture.output(summary(Model.REML),file=paste(item, "_Satterthwaite.txt"))#gives model output with estimated df and p values using Satterthwaite
+
+  capture.output(summary(Model.REML, ddf = "Kenward-Roger"), file=paste(item, "_Kenward-Roger.txt")) #gives model output using Kenward-Roger
+
+  ##Using Package afex to implement the Kenward-Roger approximation
+  Model.REML.afex.KR = mixed(H_breast_diff ~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source), data=df_NOCA_M, REML = TRUE, method = "KR") #Tests fixed effects using Kenward-Roger
+
+  capture.output(Model.REML.afex.KR, file=paste(item, "_Kenward-Roger_F.txt"))  #Returns ANOVA table with F test on fixed effects using Kenward-Roger
+}
+
+
+
+
+
+#### Means
+
+library(dplyr)
+
+
+
+list <- list("H_bill_diff", "S_bill_diff", "B_bill_diff", "H_crest_diff", "S_crest_diff", "B_crest_diff", "H_face_diff", "S_face_diff", "B_face_diff", "H_breast_diff", "S_breast_diff", "B_breast_diff", "Mass", "TailLength", "Crest", "Tarsus", "Wing", "BillLength", "Head", "BillWidth", "SMI")
+
+
+check_outlier <- function(df, .groupvar, .checkvar) {
+
+  .groupvar <- sym(.groupvar)
+  .checkvar <- sym(.checkvar)
+
+  df_outlier_check <- df %>%
+    dplyr::group_by(!! .groupvar) %>%
+    dplyr::summarise(min = min(!! .checkvar, na.rm = TRUE),
+                     max = max(!! .checkvar, na.rm = TRUE),
+                     median = median(!! .checkvar, na.rm = TRUE),
+                     MAD = mad(!! .checkvar, na.rm = TRUE),
+                     MAD_lowlim = median - (3 * MAD),
+                     MAD_highlim = median + (3 * MAD),
+                     Outliers_low = any(!! .checkvar < MAD_lowlim, na.rm = TRUE),
+                     Outliers_high = any(!! .checkvar > MAD_highlim, na.rm = TRUE)
+    )
+
+  return(df_outlier_check)
+
+}
+
+means_function <- function(df_smi, .traitvar) {
+  .traitvar <- sym(.traitvar)
+
+  data_msd <- df_smi %>%
+    group_by(Species, Sex, Urban_categorical) %>%
+    summarise(Trait_mean = mean(!! .traitvar, na.rm = T), Trait_sd = sd(!! .traitvar, na.rm = T)) %>%
+    as.data.frame()
+
+  return(data_msd)
+
+
+  myplot <- ggplot(data_msd,                               # ggplot2 plot with means & standard deviation
+         aes(x = Species,
+             y = Trait_mean, group = interaction(Sex, Urban_categorical))) +
+    geom_errorbar(aes(ymin = Trait_mean - Trait_sd,
+                      ymax = Trait_mean + Trait_sd, col = Urban_categorical), position=position_dodge(width=0.5)) +
+    geom_point(shape = 20, size = 3, aes(col = Urban_categorical), position=position_dodge(width=0.5)) +
+    facet_wrap(~Sex)
+
+    png("myplot.png")
+    print(myplot)
+    dev.off()
+}
+
+means_function(df_smi, "SMI")
+
+data_msd <- df_smi %>%
+  group_by(Species, Sex, Urban_categorical) %>%
+  summarise(Trait_mean = mean(BillWidth, na.rm = T), Trait_sd = sd(BillWidth, na.rm = T)) %>%
+  as.data.frame()
+
+
+
+ggplot(data_msd,                               # ggplot2 plot with means & standard deviation
+       aes(x = Species,
+           y = Trait_mean, group = interaction(Sex, Urban_categorical))) +
+  geom_errorbar(aes(ymin = Trait_mean - Trait_sd,
+                    ymax = Trait_mean + Trait_sd, col = Urban_categorical), position=position_dodge(width=0.5)) +
+  geom_point(shape = 20, size = 3, aes(col = Urban_categorical), position=position_dodge(width=0.5)) +
+  facet_wrap(~Sex)
+
+
+
+ggplot(data_msd, aes(x=Species, y=Crest_mean, fill=Sex)) +
+  geom_boxplot(alpha = 0.8) +
+  geom_point(shape = 20, size = 3, color = 'red') +
+  facet_wrap(~Sex)

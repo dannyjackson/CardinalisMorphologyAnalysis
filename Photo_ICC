@@ -1,0 +1,196 @@
+# calculating repeatability
+# https://rowannicholls.github.io/python/statistics/agreement/intraclass_correlation.html#:~:text=The%20intraclass%20correlation%20coefficient%20(ICC)%20is%20a%20descriptive%20statistic%20that,same%20group%20resemble%20each%20other.
+# https://www.pybloggers.com/2018/10/repeated-measures-anova-in-python-using-statsmodels/
+# https://www.statsmodels.org/dev/generated/statsmodels.stats.anova.anova_lm.html
+# https://sora.unm.edu/sites/default/files/journals/auk/v104n01/p0116-p0121.pdf
+
+import pandas as pd
+import numpy as np
+df = pd.read_csv('photo_dataset.csv')
+
+
+# Within-subject sample variances
+var_x = df[['B_bill_diff1', 'B_bill_diff2']].var(axis=1, ddof=1)
+# Mean within-subject sample variance
+var_x = var_x.mean()
+# Within-subject sample standard deviation
+s_x = np.sqrt(var_x)
+# Coefficient of repeatability
+rc = 1.96 * np.sqrt(2) * s_x
+print(rc)
+
+
+
+# ANOVA
+
+from statsmodels.stats.anova import AnovaRM
+an = AnovaRM(data=df, depvar='B_bill_diff', subject='Individual', within=['Sample']).fit()
+
+aovrm = AnovaRM(df, 'B_bill_diff', 'Individual', within=['Sample'])
+
+
+r = s2A/(s2 + s2A)
+s2A is among group variation
+s2 is within group variation
+So look at
+
+print(
+df.groupby('Species').var()
+print(df.groupby(['Species', 'Sex']).var())
+
+Variance among NOCA males
+Variance within each sample of NOCA males
+
+
+
+from sklearn.linear_model import LinearRegression
+
+#initiate linear regression model
+model = LinearRegression()
+
+#define predictor and response variables
+X, y = df[["hours", "prep_exams"]], df.score
+
+#fit regression model
+model.fit(X, y)
+
+#calculate R-squared of regression model
+r_squared = model.score(X, y)
+
+#view R-squared value
+print(r_squared)
+
+0.7175541714105901
+
+
+
+
+
+
+
+
+
+
+
+# Intraclass Correlation Coefficient
+
+# https://stats.stackexchange.com/questions/592849/using-icc-to-compare-repeated-measurements-from-multiple-raters
+
+import pingouin as pg
+import pandas as pd
+import numpy as np
+df = pd.read_csv('photo_dataset_locationfiltered.csv')
+
+
+df = df.loc[df["AGE"] != "Immature"]
+
+
+
+df_NOCA_M = df.loc[df["Species"] == "NOCA"].loc[df["Sex"] == "M"]
+df_NOCA_F = df.loc[df["Species"] == "NOCA"].loc[df["Sex"] == "F"]
+df_PYRR_M = df.loc[df["Species"] == "PYRR"].loc[df["Sex"] == "M"]
+df_PYRR_F = df.loc[df["Species"] == "PYRR"].loc[df["Sex"] == "F"]
+
+
+icc = pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='H_bill_diff')
+
+icc = pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='S_bill_diff')
+print(pd.pivot_table(df, index='Sample', columns='Individual').T)
+
+# bill
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='H_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='S_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='B_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='H_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='S_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='B_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='H_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='S_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='B_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='H_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='S_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='B_bill_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+# crest
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='H_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='S_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='B_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='H_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='S_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='B_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='H_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='S_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='B_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='H_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='S_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='B_crest_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+# face
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='H_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='S_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='B_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='H_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='S_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='B_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='H_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='S_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='B_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='H_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='S_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='B_face_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+# breast
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='H_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='S_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_M, targets='Individual', raters='Sample', ratings='B_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='H_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='S_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_NOCA_F, targets='Individual', raters='Sample', ratings='B_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='H_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='S_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_M, targets='Individual', raters='Sample', ratings='B_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='H_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='S_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df_PYRR_F, targets='Individual', raters='Sample', ratings='B_breast_diff').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+
+
+
+
+df_mean = df.groupby('Individual').mean()
+df_mean.to_csv('photo_dataset_mean.csv')
+
+df_morph = pd.read_csv('Morphology_Datasheet_All_filtered.csv')
+
+df_morph = df_morph.loc[df_morph["AGE"] != "Immature"]
+df_morph = df_morph.loc[df_morph["AGE"] != "Juvenile"]
+
+df_all = pd.merge(df_morph, df_mean, how='left', left_on = 'ID', right_on = 'Individual')
+df_all.to_csv('alldata.csv')
+
+
+pd.set_option('display.max_columns', 8)
+pd.set_option('display.width', 200)
+print(icc)
+
+
+
+df = pd.read_csv('Morphology_Datasheet_UWBM.csv')
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='TailLength').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='Crest').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='Tarsus').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='Wing').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='BillAndHead').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='BillLength').loc[icc["Type"] == "ICC3", "ICC"].round(3)
+pg.intraclass_corr(data=df, targets='ID', raters='Observer', ratings='BillWidth').loc[icc["Type"] == "ICC3", "ICC"].round(3)

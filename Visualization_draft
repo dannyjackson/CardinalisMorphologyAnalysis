@@ -1,0 +1,230 @@
+# https://rpubs.com/palday/mixed-interactions
+# https://ggplot2.tidyverse.org/reference/facet_grid.html
+# https://stats.oarc.ucla.edu/other/mult-pkg/introduction-to-linear-mixed-models/#:~:text=Linear%20mixed%20models%20are%20an,or%20patients%20from%20within%20doctors.
+
+# boxplots
+
+df_NOCA_M
+
+Model.REML = lm(B_bill_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, REML = TRUE, data=df_NOCA_F)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e)
+
+
+Model = lm(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical,data=df_PYRR_M)
+e <- allEffects(Model)
+plot(e)
+
+model_lm
+e <- allEffects(model_lm)
+plot(e)
+
+Model.REML = lmer(BillLength ~ DistanceToUrbanArea + Year_Adj + Year_Adj*DistanceToUrbanArea + (1|Source), REML = TRUE, data=df_PYRR_M)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e), xlab = "Distance from Urban Area")
+
+Model.REML = lmer(BillLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_M)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e), xlab = "Distance from Urban Area")
+
+
+
+Model.REML = lmer(H_crest_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_F)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e)
+
+Model.REML = lmer(B_crest_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_F)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e)
+
+
+Model.REML = lmer(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_M)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e)
+
+
+Model = lm(S_face_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical,data=df_NOCA_M)
+
+Model = lm(S_breast_diff ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical,data=df_PYRR_F_simple)
+
+Model = lm(TailLength ~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical, data = df_NOCA_M)
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+Model = lm(TailLength ~ Urban_categorical + Tarsus + Year_Adj + Year_Adj*Urban_categorical, data = df_PYRR_M)
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+
+Model = lmer(H_crest_diff~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_M)
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+Model = lmer(B_crest_diff~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_PYRR_M)
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+
+Model = lmer(B_bill_diff~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical + (1|Source), REML = TRUE, data=df_NOCA_M)
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+Model = lm(BillWidth ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical,data=df_NOCA_F_simple)
+
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+Model = lm(BillLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical,data=df_PYRR_M)
+
+e <- allEffects(Model)
+print(e)
+plot(e)
+
+keto = lm(formula = Ketones_avg ~ DistanceToUrbanArea + Species + DistanceToUrbanArea:Species, data = df)
+anova(keto) #Performs F test on fixed effects using Satterthwaite approximation
+anova(keto, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(keto)
+print(e)
+plot(e, xlab = "Distance from Urban Area")
+
+model_lm = lm(formula = SMI ~ DistanceToUrbanArea + Year_Adj + Species + Sex + Species * Sex * DistanceToUrbanArea + Year_Adj * DistanceToUrbanArea, data = df_smi)
+
+model_lm = lm(formula = SMI ~ Urban_categorical + Year_Adj + Species + Sex + Species * Sex * Urban_categorical + Year_Adj * Urban_categorical, data = df_smi)
+
+model_lm = lm(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data = df_NOCA_M)
+
+model_lm = lm(TailLength ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data = df_PYRR_M)
+
+model_lm = lm(Tarsus ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data = df_PYRR_M)
+
+model_lm = lm(Tarsus ~ Urban_categorical + Year_Adj + Year_Adj*Urban_categorical, data = df_NOCA_M)
+
+model_lm = lm(formula = anther ~ Urbanization + Year_Adj + Species + Urbanization:Year_Adj, data = df)
+
+model_lm = lm(formula = lutein ~ Urbanization + Year_Adj + Urbanization:Year_Adj, data = df)
+
+model_lm = lm(formula = vio ~ Urbanization + Year_Adj + Species + Urbanization:Species, data = df)
+
+
+anova(model_lm) #Performs F test on fixed effects using Satterthwaite approximation
+anova(model_lm, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+
+e <- allEffects(model_lm)
+print(e)
+plot(e), xlab = "Distance from Urban Area")
+
+
+
+
+Model.REML = lmer(H_breast_diff~ Urbanization + Year_Adj + Year_Adj*Urbanization + (1|Source), REML = TRUE, data=df_NOCA_M_museum)
+anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
+anova(Model.REML, ddf = "Kenward-Roger") #Performs F test using Kenward-Roger approximation
+e <- allEffects(Model.REML)
+print(e)
+plot(e, xlab = "Distance from Urban Area")
+
+UA15874 -- juvenile
+UA5161 --
+df_hbreast = df_NOCA_M %>% drop_na(H_breast_diff)
+
+df_hbreast$fit = fitted(Model.REML)
+
+ggplot(df_hbreast, aes(x = fit, y = Source)) +
+  geom_point()
+
+
+interact_plot(model_lm, pred = Urbanization, modx = Species, partial.residuals = TRUE, plot.points = TRUE, jitter = 0.1, point.shape = TRUE)
+
+interact_plot(model_lm, pred = Urbanization, modx = Sex, partial.residuals = TRUE, plot.points = TRUE, jitter = 0.1, point.shape = TRUE)
+
+install.packages("gridExtra")
+library(gridExtra)
+
+pdf(file = "sample_plot.pdf", width = 6, height = 6, useDingbats=FALSE)
+plot1 = ggplot(df_NOCA_M, aes(x = Urban_categorical, y = Year_Adj)) +
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  ggtitle("Northern Cardinal Males") +
+  xlab("Urban Category") +
+  ylab("Years before 2022") +
+  theme_bw()
+
+plot2 = ggplot(df_NOCA_F_simple, aes(x = Urban_categorical, y = Year_Adj)) +
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  ggtitle("Northern Cardinal Females") +
+  xlab("Urban Category") +
+  ylab("Years before 2022") +
+  theme_bw()
+
+plot3 = ggplot(df_PYRR_M, aes(x = Urban_categorical, y = Year_Adj)) +
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  ggtitle("Pyrrhuloxia Males") +
+  xlab("Urban Category") +
+  ylab("Years before 2022") +
+  theme_bw()
+
+plot4 = ggplot(df_PYRR_F_simple, aes(x = Urban_categorical, y = Year_Adj)) +
+  geom_point(position = position_jitter(w = 0.1, h = 0)) +
+  ggtitle("Pyrrhuloxia Females") +
+  xlab("Urban Category") +
+  ylab("Years before 2022") +
+  theme_bw()
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
+dev.off()
+
+ggplot(df_hbreast, aes(x = Urbanization, y = Year_Adj)) +
+  geom_point()
+  facet_grid(Urbanization~Year_Adj, margins = TRUE) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+  ggplot(Q1, aes(x = fit, y = Course)) +
+    geom_boxplot(size = .75) +
+    geom_jitter(alpha = .5) +
+  facet_grid(LGBTQ~Gender, margins = TRUE) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+install.packages("mapview")
+library(tiff)
+library(ggmap)
+library(raster)
+library(mapview)
+locations = df[c("LONGITUDE", "LATITIUDE")]
+
+state <- map_data("state")
+arizona <- subset(state, region=="arizona")
+counties <- map_data("county")
+arizona_county <- subset(counties, region=="arizona")
+
+ggplot() +  geom_polygon(data=arizona, fill="gray", aes(x=long, y=lat, group=group)) + geom_polygon(data=arizona_county, fill=NA, color="white", aes(x=long, y=lat, group=group)) +  geom_point(data=df, aes(x=longitude, y=latitude, color=factor(Source))) + theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+ggplot(df_NOCA_M, aes(x = H_face_diff)) +
+  geom_histogram(fill = "white", colour = "black") +
+  facet_grid(Urban_categorical ~ .)
+
+ggplot(df_NOCA_M, aes(x = H_bill_diff)) +
+  geom_histogram(aes(color = Urban_categorical), fill = "white",
+                position = "identity", bins = 30) 
